@@ -17,6 +17,7 @@ import { loadIntegrationSettings, buildCapabilitiesPrompt } from '../lib/integra
 import { buildConversationState, buildConversationalPrompt, DEFAULT_PERSONA } from '../lib/persona';
 import { getRelevantSkills } from '../lib/storage';
 import { parseToolCalls, executeToolCalls, hasToolCalls } from '../lib/tool-calling';
+import { exportChatAsJSON, exportChatAsMarkdown, exportChatAsText } from '../lib/export';
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -31,6 +32,7 @@ export default function ChatInterface() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [useKnowledgeBase, setUseKnowledgeBase] = useState(true);
   const [activeKnowledge, setActiveKnowledge] = useState<Array<{id: string, name: string}>>([]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Check Ollama status and load models on mount
   useEffect(() => {
@@ -298,6 +300,36 @@ ${capabilitiesInfo}${skillsContext}`;
     setCurrentView(view);
   };
 
+  const handleExportChat = (format: 'json' | 'markdown' | 'text') => {
+    if (messages.length === 0) {
+      alert('No messages to export');
+      return;
+    }
+
+    const chat: ChatHistory = {
+      id: currentChatId || Date.now().toString(),
+      title: messages[0]?.content.slice(0, 50) || 'Exported Chat',
+      timestamp: Date.now(),
+      messages: messages,
+      projectId: currentProjectId || undefined,
+      folderId: currentFolderId || undefined,
+    };
+
+    switch (format) {
+      case 'json':
+        exportChatAsJSON(chat);
+        break;
+      case 'markdown':
+        exportChatAsMarkdown(chat);
+        break;
+      case 'text':
+        exportChatAsText(chat);
+        break;
+    }
+
+    setShowExportMenu(false);
+  };
+
   // Save chat when messages change (auto-save)
   useEffect(() => {
     if (messages.length > 0 && !isLoading) {
@@ -348,6 +380,55 @@ ${capabilitiesInfo}${skillsContext}`;
         {/* Main content area */}
         {currentView === 'chats' ? (
           <>
+            {/* Export button - floating */}
+            {messages.length > 0 && (
+              <div className="absolute top-4 right-4 z-10">
+                <div className="relative">
+                  <button
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    className="p-2 bg-[#2a2a2a] hover:bg-[#3a3a3a] text-[#e8e8e8] rounded-lg border border-[#3a3a3a] transition-all flex items-center gap-2"
+                    title="Export conversation"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </button>
+
+                  {/* Export menu dropdown */}
+                  {showExportMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-[#2a2a2a] border border-[#3a3a3a] rounded-lg shadow-lg overflow-hidden">
+                      <button
+                        onClick={() => handleExportChat('markdown')}
+                        className="w-full px-4 py-2 text-left text-sm text-[#e8e8e8] hover:bg-[#3a3a3a] transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Export as Markdown
+                      </button>
+                      <button
+                        onClick={() => handleExportChat('json')}
+                        className="w-full px-4 py-2 text-left text-sm text-[#e8e8e8] hover:bg-[#3a3a3a] transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        Export as JSON
+                      </button>
+                      <button
+                        onClick={() => handleExportChat('text')}
+                        className="w-full px-4 py-2 text-left text-sm text-[#e8e8e8] hover:bg-[#3a3a3a] transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Export as Text
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="flex-1 overflow-hidden flex flex-col">
               {messages.length === 0 ? (

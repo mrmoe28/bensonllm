@@ -9,6 +9,7 @@ import {
   getSkillsKnowledge,
 } from '../lib/storage';
 import { processFile, processURL, validateFileType, getFileTypeIcon } from '../lib/document-processor';
+import { SKILLS_DATASETS } from '../data/skills-datasets';
 
 type KnowledgeFilter = 'all' | 'skills' | 'reference' | 'examples' | 'general';
 
@@ -104,6 +105,31 @@ export default function KnowledgeBaseManager() {
     }
   };
 
+  const handleLoadPredefinedSkills = () => {
+    const { addKnowledgeDocument } = require('../lib/storage');
+    let addedCount = 0;
+
+    SKILLS_DATASETS.forEach(skillData => {
+      // Check if skill already exists
+      const exists = documents.some(doc => doc.name === skillData.name);
+      if (!exists) {
+        const document: KnowledgeDocument = {
+          ...skillData,
+          id: `skill-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        };
+        addKnowledgeDocument(document);
+        addedCount++;
+      }
+    });
+
+    if (addedCount > 0) {
+      loadDocuments();
+      alert(`✅ Added ${addedCount} predefined skills to knowledge base!`);
+    } else {
+      alert('ℹ️ All predefined skills are already in your knowledge base.');
+    }
+  };
+
   // Apply category filter first
   let filteredByCategory = documents;
   if (activeFilter !== 'all') {
@@ -176,6 +202,15 @@ export default function KnowledgeBaseManager() {
             {documents.length} document{documents.length !== 1 ? 's' : ''} • {formatBytes(totalSize)}
           </p>
         </div>
+        <button
+          onClick={handleLoadPredefinedSkills}
+          className="px-4 py-2 bg-accent-orange hover-accent-orange text-white rounded-lg transition-all flex items-center gap-2 text-sm font-medium"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          Load AI Skills
+        </button>
       </div>
 
       {/* Upload Section */}
