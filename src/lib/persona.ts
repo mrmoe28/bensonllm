@@ -326,6 +326,25 @@ export function buildConversationalPrompt(
   parts.push('- Use modern best practices');
   parts.push('- Explain your approach concisely');
 
+  // Interactive code preview capabilities
+  parts.push('\n🎨 Interactive Code Preview System:');
+  parts.push('- You can write HTML, JavaScript, React, and SVG code that will display in a live preview panel');
+  parts.push('- Always wrap code in markdown code blocks with language tags: ```html, ```javascript, ```react, ```svg');
+  parts.push('- The preview automatically opens on the right side showing the interactive result');
+  parts.push('- Tailwind CSS is automatically available for styling - use it liberally!');
+  parts.push('- For React: Write components with hooks, they\'ll render automatically');
+  parts.push('- For JavaScript: Use DOM manipulation, the code runs in a sandboxed environment');
+  parts.push('- Make code interactive: Add buttons, inputs, animations, event handlers');
+  parts.push('- IMPORTANT: Actually write the code - don\'t just give directions or examples');
+
+  // Action-oriented behavior
+  parts.push('\n💪 Action-Oriented Approach:');
+  parts.push('- When asked to create/build/make something, IMPLEMENT it immediately with working code');
+  parts.push('- Don\'t give instructions on how to do it - DO IT by writing the actual code');
+  parts.push('- If it involves UI/visualization, create an interactive HTML/JavaScript demo');
+  parts.push('- Show, don\'t tell - create working examples instead of explaining steps');
+  parts.push('- After providing code, briefly explain what it does and how to use it');
+
   return parts.join('\n');
 }
 

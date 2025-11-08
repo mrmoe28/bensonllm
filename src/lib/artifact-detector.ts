@@ -38,7 +38,7 @@ export function detectCodeBlocks(content: string): Array<{ language: string; cod
  * Determines if a code block should be rendered as an interactive artifact
  */
 export function isRenderableArtifact(language: string, code: string): boolean {
-  const renderableLanguages = ['html', 'svg', 'react', 'jsx', 'tsx'];
+  const renderableLanguages = ['html', 'svg', 'react', 'jsx', 'tsx', 'vue', 'svelte', 'javascript', 'js'];
   const lang = language.toLowerCase();
 
   // Check if language is renderable
@@ -53,7 +53,7 @@ export function isRenderableArtifact(language: string, code: string): boolean {
 
   // Check for HTML patterns in unmarked code blocks
   if (!language || language === 'text') {
-    const htmlPattern = /<(!DOCTYPE|html|div|span|p|h[1-6]|svg|body|head)/i;
+    const htmlPattern = /<(!DOCTYPE|html|div|span|p|h[1-6]|svg|body|head|button|input|canvas)/i;
     return htmlPattern.test(code);
   }
 
@@ -204,6 +204,34 @@ export function wrapSVGCode(code: string): string {
 }
 
 /**
+ * Wraps JavaScript code in a full HTML document with common libraries
+ */
+export function wrapJavaScriptCode(code: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JavaScript Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script>
+    ${code}
+  </script>
+</body>
+</html>`;
+}
+
+/**
  * Prepares code for rendering in iframe based on language
  */
 export function prepareCodeForRendering(code: string, language: ArtifactLanguage): string {
@@ -212,19 +240,28 @@ export function prepareCodeForRendering(code: string, language: ArtifactLanguage
       return wrapReactCode(code);
     case 'svg':
       return wrapSVGCode(code);
+    case 'javascript':
+      return wrapJavaScriptCode(code);
     case 'html':
       // If it's a complete HTML document, return as-is
       if (code.trim().toLowerCase().startsWith('<!doctype') ||
           code.trim().toLowerCase().startsWith('<html')) {
         return code;
       }
-      // Otherwise, wrap in basic HTML structure
+      // Otherwise, wrap in basic HTML structure with Tailwind CSS
       return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Preview</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+    }
+  </style>
 </head>
 <body>
   ${code}
