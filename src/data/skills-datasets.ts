@@ -743,6 +743,435 @@ console.log(\`Took \${end - start}ms\`);
       tags: ['debugging', 'troubleshooting', 'best-practices', 'methodology', 'testing', 'development'],
     },
   },
+
+  // Modern UI Design with shadcn/ui & SuperDesign
+  {
+    name: 'Modern UI Design with shadcn/ui & SuperDesign',
+    type: 'text',
+    category: 'skills',
+    priority: 'high',
+    content: `# Modern UI Design with shadcn/ui & SuperDesign (2025)
+
+## What is shadcn/ui?
+
+shadcn/ui is NOT a component library - it's a collection of **re-usable components** that you can copy and paste into your apps. Built with Radix UI and Tailwind CSS.
+
+### Core Philosophy
+- **Copy, don't install** - Components live in your codebase
+- **Customizable** - Modify components to fit your needs
+- **Accessible** - Built on Radix UI primitives
+- **Beautiful** - Modern, polished designs out of the box
+- **Type-safe** - Full TypeScript support
+
+## Getting Started
+
+### Installation
+
+\`\`\`bash
+# Initialize shadcn/ui in your project
+npx shadcn@latest init
+
+# Add components as needed
+npx shadcn@latest add button
+npx shadcn@latest add card
+npx shadcn@latest add dialog
+\`\`\`
+
+### Project Structure
+\`\`\`
+src/
+├── components/
+│   └── ui/           # shadcn components
+│       ├── button.tsx
+│       ├── card.tsx
+│       └── dialog.tsx
+├── lib/
+│   └── utils.ts      # cn() utility
+└── app/
+    └── page.tsx
+\`\`\`
+
+## SuperDesign Patterns
+
+SuperDesign is about creating **polished, production-ready UI** from the start using modern component systems.
+
+### Core Principles
+
+#### 1. Component-First Thinking
+**ALWAYS use design system components, NEVER basic HTML**
+
+❌ **Bad (Basic HTML)**
+\`\`\`html
+<div class="bg-white p-4 rounded shadow">
+  <h2>Title</h2>
+  <p>Content</p>
+  <button class="bg-blue-500 text-white px-4 py-2 rounded">
+    Click me
+  </button>
+</div>
+\`\`\`
+
+✅ **Good (shadcn/ui Components)**
+\`\`\`tsx
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+
+<Card>
+  <CardHeader>
+    <CardTitle>Title</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <p>Content</p>
+    <Button>Click me</Button>
+  </CardContent>
+</Card>
+\`\`\`
+
+#### 2. Composition Over Configuration
+Build complex UIs by composing simple components.
+
+\`\`\`tsx
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog"
+
+<Dialog>
+  <DialogTrigger asChild>
+    <Button>Open</Button>
+  </DialogTrigger>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Are you sure?</DialogTitle>
+      <DialogDescription>
+        This action cannot be undone.
+      </DialogDescription>
+    </DialogHeader>
+  </DialogContent>
+</Dialog>
+\`\`\`
+
+#### 3. Accessible by Default
+shadcn/ui uses Radix UI primitives for built-in accessibility:
+- Keyboard navigation
+- ARIA attributes
+- Focus management
+- Screen reader support
+
+## Essential shadcn/ui Components
+
+### Button
+\`\`\`tsx
+import { Button } from "@/components/ui/button"
+
+<Button variant="default">Default</Button>
+<Button variant="destructive">Delete</Button>
+<Button variant="outline">Outline</Button>
+<Button variant="secondary">Secondary</Button>
+<Button variant="ghost">Ghost</Button>
+<Button variant="link">Link</Button>
+<Button size="sm">Small</Button>
+<Button size="lg">Large</Button>
+<Button size="icon"><Icon /></Button>
+\`\`\`
+
+### Card
+\`\`\`tsx
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
+<Card>
+  <CardHeader>
+    <CardTitle>Card Title</CardTitle>
+    <CardDescription>Card Description</CardDescription>
+  </CardHeader>
+  <CardContent>
+    <p>Card Content</p>
+  </CardContent>
+  <CardFooter>
+    <Button>Action</Button>
+  </CardFooter>
+</Card>
+\`\`\`
+
+### Form
+\`\`\`tsx
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+
+const formSchema = z.object({
+  username: z.string().min(2).max(50),
+})
+
+function ProfileForm() {
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      username: "",
+    },
+  })
+
+  function onSubmit(values: z.infer<typeof formSchema>) {
+    console.log(values)
+  }
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <FormField
+          control={form.control}
+          name="username"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Username</FormLabel>
+              <FormControl>
+                <Input placeholder="shadcn" {...field} />
+              </FormControl>
+              <FormDescription>
+                This is your public display name.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button type="submit">Submit</Button>
+      </form>
+    </Form>
+  )
+}
+\`\`\`
+
+### Data Table
+\`\`\`tsx
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+<Table>
+  <TableCaption>A list of your recent invoices.</TableCaption>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Invoice</TableHead>
+      <TableHead>Status</TableHead>
+      <TableHead>Method</TableHead>
+      <TableHead className="text-right">Amount</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell className="font-medium">INV001</TableCell>
+      <TableCell>Paid</TableCell>
+      <TableCell>Credit Card</TableCell>
+      <TableCell className="text-right">$250.00</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+\`\`\`
+
+## SuperDesign Best Practices
+
+### 1. Always Initialize shadcn/ui First
+When creating a new UI, start by setting up shadcn/ui:
+
+\`\`\`bash
+npx shadcn@latest init
+\`\`\`
+
+### 2. Add Components as Needed
+Don't add all components upfront. Add them when you need them:
+
+\`\`\`bash
+# For a form page
+npx shadcn@latest add form input button label
+
+# For a dashboard
+npx shadcn@latest add card table badge
+
+# For navigation
+npx shadcn@latest add navigation-menu dropdown-menu
+\`\`\`
+
+### 3. Use Variants for Consistency
+shadcn components come with built-in variants:
+
+\`\`\`tsx
+<Button variant="destructive">Delete</Button>
+<Alert variant="destructive">Error message</Alert>
+<Badge variant="secondary">Status</Badge>
+\`\`\`
+
+### 4. Combine with Tailwind for Custom Styling
+\`\`\`tsx
+<Card className="bg-gradient-to-r from-blue-500 to-purple-600">
+  <CardHeader className="text-white">
+    <CardTitle>Custom Styled Card</CardTitle>
+  </CardHeader>
+</Card>
+\`\`\`
+
+### 5. Build Composite Components
+Create your own components by combining shadcn primitives:
+
+\`\`\`tsx
+import { Card, CardContent } from "@/components/ui/card"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
+function UserCard({ user }: { user: User }) {
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-4 p-6">
+        <Avatar>
+          <AvatarImage src={user.avatar} />
+          <AvatarFallback>{user.initials}</AvatarFallback>
+        </Avatar>
+        <div>
+          <h3 className="font-semibold">{user.name}</h3>
+          <p className="text-sm text-muted-foreground">{user.email}</p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+\`\`\`
+
+## Complete Example: Landing Page
+
+\`\`\`tsx
+import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      {/* Hero Section */}
+      <section className="container mx-auto px-4 py-20 text-center">
+        <h1 className="text-6xl font-bold tracking-tight mb-6">
+          Build Better Apps Faster
+        </h1>
+        <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          Beautiful, accessible components that you can copy and paste into your apps.
+        </p>
+        <div className="flex gap-4 justify-center">
+          <Button size="lg">Get Started</Button>
+          <Button size="lg" variant="outline">Learn More</Button>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section className="container mx-auto px-4 py-20">
+        <h2 className="text-4xl font-bold text-center mb-12">Features</h2>
+        <div className="grid md:grid-cols-3 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Accessible</CardTitle>
+              <CardDescription>
+                Built on Radix UI for keyboard navigation and screen readers
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                All components follow WAI-ARIA design patterns
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Customizable</CardTitle>
+              <CardDescription>
+                Own your components - copy and modify as needed
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                No npm package lock-in. Full control over code
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Type-Safe</CardTitle>
+              <CardDescription>
+                Built with TypeScript for better developer experience
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Autocomplete, type checking, and IntelliSense
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+    </div>
+  )
+}
+\`\`\`
+
+## Key Takeaways
+
+1. **Use shadcn/ui components** - Never write basic HTML/CSS when a component exists
+2. **Compose, don't configure** - Build complex UIs from simple components
+3. **Customize freely** - Components are in your codebase, modify as needed
+4. **Type-safe by default** - Full TypeScript support
+5. **Accessible by default** - Radix UI primitives handle a11y
+6. **Production-ready** - Polished designs that work across browsers
+7. **Modern stack** - React 19, TypeScript, Tailwind CSS 3.4+
+
+## Common Components to Add
+
+Essential for most apps:
+\`\`\`bash
+npx shadcn@latest add button card input label form dialog alert badge table
+\`\`\`
+
+## Resources
+- Documentation: https://ui.shadcn.com
+- GitHub: https://github.com/shadcn-ui/ui
+- Radix UI: https://www.radix-ui.com
+- Tailwind CSS: https://tailwindcss.com`,
+    metadata: {
+      size: 8192,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      tags: ['ui', 'design', 'shadcn', 'react', 'tailwind', 'components', 'accessibility', 'superdesign'],
+    },
+  },
 ];
 
 /**

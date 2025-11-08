@@ -1,0 +1,10 @@
+#!/bin/bash
+
+# Ollama Custom Chat - macOS App Launcher
+
+# Get the project directory (parent of the .app bundle)
+APP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../../.." && pwd )"
+PROJECT_DIR="$( cd "$APP_DIR/.." && pwd )"
+
+# Run the startup script
+exec "$PROJECT_DIR/start-chat.sh"

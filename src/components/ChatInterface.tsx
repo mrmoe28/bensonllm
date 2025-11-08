@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getModels, streamChat, checkOllamaStatus, type Message, type Model } from '../lib/ollama-client';
 import { addChatToHistory } from '../lib/storage';
-import type { ViewType, ChatHistory } from '../types/app';
+import { addToStreamingBuffer, finishStreaming, resetStreamingBuffer, loadAudioSettings } from '../lib/audio';
+import type { ViewType, ChatHistory, LiveArtifact } from '../types/app';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
 import Sidebar from './Sidebar';
@@ -11,6 +12,7 @@ import ArtifactsView from './ArtifactsView';
 import CodeView from './CodeView';
 import SettingsView from './SettingsView';
 import ProfileView from './ProfileView';
+import ArtifactPreviewPanel from './ArtifactPreviewPanel';
 import { createSystemPromptWithContext } from '../lib/context-builder';
 import { createMemoryFromChat } from '../lib/memory';
 import { loadIntegrationSettings, buildCapabilitiesPrompt } from '../lib/integrations';
@@ -18,6 +20,7 @@ import { buildConversationState, buildConversationalPrompt, DEFAULT_PERSONA } fr
 import { getRelevantSkills } from '../lib/storage';
 import { parseToolCalls, executeToolCalls, hasToolCalls } from '../lib/tool-calling';
 import { exportChatAsJSON, exportChatAsMarkdown, exportChatAsText } from '../lib/export';
+import { extractLatestArtifact } from '../lib/artifact-detector';
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,6 +35,10 @@ export default function ChatInterface() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [useKnowledgeBase] = useState(true);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [currentArtifact, setCurrentArtifact] = useState<LiveArtifact | null>(null);
+  const [panelWidth, setPanelWidth] = useState(40); // Percentage - chat takes 40%, preview takes 60%
+  const [isResizing, setIsResizing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Check Ollama status and load models on mount
   useEffect(() => {
@@ -74,6 +81,39 @@ export default function ChatInterface() {
 
     init();
   }, []);
+
+  // Handle panel resizing
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing || !containerRef.current) return;
+
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+
+      // Constrain between 30% and 70%
+      if (newWidth >= 30 && newWidth <= 70) {
+        setPanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing]);
 
   const handleSendMessage = async (content: string, images?: string[]) => {
     if (!content.trim() || !selectedModel) return;
@@ -137,10 +177,18 @@ ${capabilitiesInfo}${skillsContext}`;
         ? [systemPrompt, userMessage]
         : [...messages, userMessage];
 
+      // Reset streaming buffer and get audio settings
+      const audioSettings = loadAudioSettings();
+      resetStreamingBuffer();
+
       // Stream the response from Ollama
       let fullResponse = '';
       for await (const chunk of streamChat(selectedModel, messagesWithSystem)) {
         fullResponse += chunk;
+
+        // Add chunk to TTS streaming buffer
+        addToStreamingBuffer(chunk, audioSettings);
+
         setMessages(prev => {
           const newMessages = [...prev];
           const lastMessage = newMessages[newMessages.length - 1];
@@ -152,7 +200,16 @@ ${capabilitiesInfo}${skillsContext}`;
           }
           return newMessages;
         });
+
+        // Check for artifacts in real-time during streaming
+        const artifact = extractLatestArtifact(fullResponse);
+        if (artifact) {
+          setCurrentArtifact(artifact);
+        }
       }
+
+      // Finish streaming and speak any remaining text
+      finishStreaming(audioSettings);
 
       // Check for tool calls in the response
       if (hasToolCalls(fullResponse)) {
@@ -193,7 +250,16 @@ ${capabilitiesInfo}${skillsContext}`;
 
         const followUpMessages = [...messages, userMessage, { role: 'assistant' as const, content: fullResponse }, followUpMessage];
 
+        // Reset streaming buffer for follow-up response
+        resetStreamingBuffer();
+
+        let followUpResponse = '';
         for await (const chunk of streamChat(selectedModel, [...messagesWithSystem.slice(0, -1), ...followUpMessages])) {
+          followUpResponse += chunk;
+
+          // Add chunk to TTS streaming buffer
+          addToStreamingBuffer(chunk, audioSettings);
+
           setMessages(prev => {
             const newMessages = [...prev];
             const lastMessage = newMessages[newMessages.length - 1];
@@ -205,7 +271,16 @@ ${capabilitiesInfo}${skillsContext}`;
             }
             return newMessages;
           });
+
+          // Check for artifacts in follow-up response
+          const followUpArtifact = extractLatestArtifact(followUpResponse);
+          if (followUpArtifact) {
+            setCurrentArtifact(followUpArtifact);
+          }
         }
+
+        // Finish streaming for follow-up response
+        finishStreaming(audioSettings);
       }
     } catch (err) {
       setError('Failed to get response from Ollama. Check console for details.');
@@ -228,6 +303,11 @@ ${capabilitiesInfo}${skillsContext}`;
     setCurrentProjectId(null);
     setCurrentFolderId(null);
     setCurrentView('chats');
+    setCurrentArtifact(null);
+  };
+
+  const handleCloseArtifact = () => {
+    setCurrentArtifact(null);
   };
 
   const handleQuickAction = (prompt: string) => {
@@ -372,10 +452,15 @@ ${capabilitiesInfo}${skillsContext}`;
 
         {/* Main content area */}
         {currentView === 'chats' ? (
-          <>
-            {/* Export button - floating */}
-            {messages.length > 0 && (
-              <div className="absolute top-4 right-4 z-10">
+          <div ref={containerRef} className="flex-1 flex overflow-hidden">
+            {/* Chat panel */}
+            <div
+              className="flex flex-col relative h-full"
+              style={{ width: currentArtifact ? `${panelWidth}%` : '100%' }}
+            >
+              {/* Export button - floating */}
+              {messages.length > 0 && (
+                <div className="absolute top-4 right-4 z-10">
                 <div className="relative">
                   <button
                     onClick={() => setShowExportMenu(!showExportMenu)}
@@ -431,15 +516,34 @@ ${capabilitiesInfo}${skillsContext}`;
               )}
             </div>
 
-            {/* Input area - fixed at bottom for chat view */}
-            <InputBox
-              onSend={handleSendMessage}
-              disabled={isLoading || !selectedModel}
-              models={models}
-              selectedModel={selectedModel}
-              onSelectModel={setSelectedModel}
-            />
-          </>
+              {/* Input area - fixed at bottom for chat view */}
+              <InputBox
+                onSend={handleSendMessage}
+                disabled={isLoading || !selectedModel}
+                models={models}
+                selectedModel={selectedModel}
+                onSelectModel={setSelectedModel}
+              />
+            </div>
+
+            {/* Resizer */}
+            {currentArtifact && (
+              <div
+                className="w-1 h-full bg-[#3a3a3a] hover:bg-accent-orange cursor-col-resize transition-colors flex-shrink-0"
+                onMouseDown={() => setIsResizing(true)}
+              />
+            )}
+
+            {/* Artifact Preview Panel */}
+            {currentArtifact && (
+              <div className="flex flex-col h-full" style={{ width: `${100 - panelWidth}%` }}>
+                <ArtifactPreviewPanel
+                  artifact={currentArtifact}
+                  onClose={handleCloseArtifact}
+                />
+              </div>
+            )}
+          </div>
         ) : currentView === 'projects' ? (
           <ProjectsView onProjectCreated={handleProjectCreated} />
         ) : currentView === 'artifacts' ? (

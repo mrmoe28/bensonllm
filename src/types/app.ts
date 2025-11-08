@@ -99,3 +99,26 @@ export interface IntegrationSettings {
 }
 
 export type ViewType = 'chats' | 'projects' | 'artifacts' | 'code' | 'settings' | 'profile' | 'knowledge';
+
+export type ArtifactLanguage = 'html' | 'react' | 'svg' | 'javascript' | 'css' | 'typescript' | 'python' | 'other';
+
+export type PreviewMode = 'preview' | 'code';
+
+export interface ArtifactVersion {
+  id: string;
+  content: string;
+  timestamp: number;
+  language: ArtifactLanguage;
+}
+
+export interface LiveArtifact {
+  id: string;
+  title: string;
+  language: ArtifactLanguage;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+  versions: ArtifactVersion[];
+  currentVersionIndex: number;
+  isRenderable: boolean;
+}

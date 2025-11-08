@@ -45,6 +45,14 @@ export async function getModels(): Promise<Model[]> {
   }
 }
 
+// Typing delay in milliseconds (slower = more realistic typing)
+const TYPING_DELAY_MS = 30;
+
+// Helper function to add typing delay
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Send chat message with streaming support
 export async function* streamChat(
   model: string,
@@ -88,6 +96,8 @@ export async function* streamChat(
           try {
             const data: ChatResponse = JSON.parse(line);
             if (data.message?.content) {
+              // Add typing delay for more realistic effect
+              await delay(TYPING_DELAY_MS);
               yield data.message.content;
             }
           } catch (e) {

@@ -6,6 +6,8 @@ const AUDIO_API_URL = 'http://localhost:3001/api/tts';
 let currentAudio: HTMLAudioElement | null = null;
 let audioQueue: Array<{ text: string; settings: AudioSettings }> = [];
 let isPlaying = false;
+let streamingBuffer = '';
+let streamingTimer: NodeJS.Timeout | null = null;
 
 export async function synthesizeAndPlay(text: string, settings: AudioSettings): Promise<void> {
   if (!settings.enabled) return;
@@ -137,6 +139,67 @@ export function getAudioStatus(): { isPlaying: boolean; queueLength: number } {
     isPlaying,
     queueLength: audioQueue.length,
   };
+}
+
+// Progressive TTS for streaming responses
+export function addToStreamingBuffer(chunk: string, settings: AudioSettings): void {
+  if (!settings.enabled || !settings.autoPlay) return;
+
+  streamingBuffer += chunk;
+
+  // Clear existing timer
+  if (streamingTimer) {
+    clearTimeout(streamingTimer);
+  }
+
+  // Set a timer to speak complete sentences
+  streamingTimer = setTimeout(() => {
+    speakCompleteSentences(settings);
+  }, 300); // Wait 300ms after last chunk to process
+}
+
+export function finishStreaming(settings: AudioSettings): void {
+  if (streamingTimer) {
+    clearTimeout(streamingTimer);
+    streamingTimer = null;
+  }
+
+  // Speak any remaining text
+  if (streamingBuffer.trim()) {
+    queueAudio(streamingBuffer.trim(), settings);
+    streamingBuffer = '';
+  }
+}
+
+function speakCompleteSentences(settings: AudioSettings): void {
+  // Look for complete sentences (ending with . ! ? or newlines)
+  const sentenceEndRegex = /[.!?\n]+\s*/g;
+  const matches = [...streamingBuffer.matchAll(sentenceEndRegex)];
+
+  if (matches.length === 0) return;
+
+  // Get the last match position
+  const lastMatch = matches[matches.length - 1];
+  const endPos = lastMatch.index! + lastMatch[0].length;
+
+  // Extract complete sentences
+  const completeSentences = streamingBuffer.substring(0, endPos).trim();
+
+  if (completeSentences) {
+    // Queue the complete sentences for TTS
+    queueAudio(completeSentences, settings);
+
+    // Remove spoken text from buffer
+    streamingBuffer = streamingBuffer.substring(endPos);
+  }
+}
+
+export function resetStreamingBuffer(): void {
+  streamingBuffer = '';
+  if (streamingTimer) {
+    clearTimeout(streamingTimer);
+    streamingTimer = null;
+  }
 }
 
 export function getDefaultAudioSettings(): AudioSettings {
