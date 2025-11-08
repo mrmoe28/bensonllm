@@ -1,4 +1,4 @@
-import { performWebSearch, formatSearchResultsForLLM, type SearchResponse } from './search';
+import { performWebSearch, formatSearchResultsForLLM } from './search';
 import { loadIntegrationSettings } from './integrations';
 
 export interface ToolCall {

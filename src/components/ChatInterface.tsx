@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getModels, streamChat, checkOllamaStatus, type Message, type Model } from '../lib/ollama-client';
-import { addChatToHistory, getProjects } from '../lib/storage';
+import { addChatToHistory } from '../lib/storage';
 import type { ViewType, ChatHistory } from '../types/app';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
@@ -11,7 +11,7 @@ import ArtifactsView from './ArtifactsView';
 import CodeView from './CodeView';
 import SettingsView from './SettingsView';
 import ProfileView from './ProfileView';
-import { createSystemPromptWithContext, getActiveKnowledgeSummary } from '../lib/context-builder';
+import { createSystemPromptWithContext } from '../lib/context-builder';
 import { createMemoryFromChat } from '../lib/memory';
 import { loadIntegrationSettings, buildCapabilitiesPrompt } from '../lib/integrations';
 import { buildConversationState, buildConversationalPrompt, DEFAULT_PERSONA } from '../lib/persona';
@@ -30,8 +30,7 @@ export default function ChatInterface() {
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [useKnowledgeBase, setUseKnowledgeBase] = useState(true);
-  const [activeKnowledge, setActiveKnowledge] = useState<Array<{id: string, name: string}>>([]);
+  const [useKnowledgeBase] = useState(true);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Check Ollama status and load models on mount
@@ -93,12 +92,6 @@ export default function ChatInterface() {
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
     setError(null);
-
-    // Get active knowledge for this query
-    if (useKnowledgeBase) {
-      const knowledge = getActiveKnowledgeSummary(content, 3);
-      setActiveKnowledge(knowledge);
-    }
 
     try {
       const assistantMessage: Message = { role: 'assistant', content: '' };
@@ -198,7 +191,7 @@ ${capabilitiesInfo}${skillsContext}`;
         const followUpAssistant: Message = { role: 'assistant', content: '' };
         setMessages(prev => [...prev, followUpAssistant]);
 
-        const followUpMessages = [...messages, userMessage, { role: 'assistant', content: fullResponse }, followUpMessage];
+        const followUpMessages = [...messages, userMessage, { role: 'assistant' as const, content: fullResponse }, followUpMessage];
 
         for await (const chunk of streamChat(selectedModel, [...messagesWithSystem.slice(0, -1), ...followUpMessages])) {
           setMessages(prev => {

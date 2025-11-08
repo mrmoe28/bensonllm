@@ -1,0 +1,43 @@
+# Documentation files
+README.md
+*.md
+AUDIO_SETUP.md
+CUSTOMIZATION.md
+FEATURES.md
+GETTING_STARTED.md
+LLAMA_API_SETUP.md
+
+# Environment files (secrets)
+.env
+.env.local
+.env*.local
+
+# Server directory (won't work on Vercel)
+server/
+
+# Dependencies
+node_modules/
+
+# Git
+.git/
+
+# Build output
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories
+.vscode/
+.idea/
+.DS_Store
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx

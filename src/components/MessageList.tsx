@@ -133,7 +133,6 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
                         remarkPlugins={[remarkGfm]}
                         components={{
                           code: ({node, inline, className, children, ...props}: any) => {
-                            const match = /language-(\w+)/.exec(className || '');
                             return !inline ? (
                               <div className="bg-[#2a2a2a] border border-[#3a3a3a] rounded-lg p-4 my-2 overflow-x-auto">
                                 <pre className="text-sm">

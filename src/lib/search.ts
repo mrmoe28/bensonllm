@@ -137,7 +137,7 @@ export async function searchDuckDuckGoInstant(query: string): Promise<SearchResp
  */
 export async function performWebSearch(
   query: string,
-  provider: 'duckduckgo' | 'google' | 'bing' | 'brave' = 'duckduckgo'
+  _provider: 'duckduckgo' | 'google' | 'bing' | 'brave' = 'duckduckgo'
 ): Promise<SearchResponse> {
   // For now, only DuckDuckGo is implemented
   // Try Instant API first (faster, no CORS issues)

@@ -17,9 +17,9 @@ export function startNewSession(): string {
 }
 
 export async function createMemoryFromChat(chat: ChatHistory): Promise<ConversationMemory> {
-  const summary = await generateSummary(chat.messages);
-  const keyTopics = extractTopics(chat.messages);
-  const entities = extractEntities(chat.messages);
+  const summary = await generateSummary(chat.messages as Message[]);
+  const keyTopics = extractTopics(chat.messages as Message[]);
+  const entities = extractEntities(chat.messages as Message[]);
 
   const memory: ConversationMemory = {
     id: `memory-${chat.id}`,

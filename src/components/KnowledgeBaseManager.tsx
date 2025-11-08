@@ -5,8 +5,6 @@ import {
   deleteKnowledgeDocument,
   updateKnowledgeDocument,
   getTotalKnowledgeSize,
-  getKnowledgeByCategory,
-  getSkillsKnowledge,
 } from '../lib/storage';
 import { processFile, processURL, validateFileType, getFileTypeIcon } from '../lib/document-processor';
 import { SKILLS_DATASETS } from '../data/skills-datasets';
@@ -91,17 +89,6 @@ export default function KnowledgeBaseManager() {
     loadDocuments();
     if (selectedDoc?.id === id) {
       setSelectedDoc(null);
-    }
-  };
-
-  const handleAddTag = (id: string, tag: string) => {
-    const doc = documents.find(d => d.id === id);
-    if (doc && tag.trim()) {
-      const newTags = [...doc.metadata.tags, tag.trim()];
-      updateKnowledgeDocument(id, {
-        metadata: { ...doc.metadata, tags: newTags }
-      });
-      loadDocuments();
     }
   };
 
