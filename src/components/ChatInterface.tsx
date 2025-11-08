@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { getModels, streamChat, checkOllamaStatus, type Message, type Model } from '../lib/ollama-client';
 import { addChatToHistory, getProjects } from '../lib/storage';
 import type { ViewType, ChatHistory } from '../types/app';
@@ -27,7 +27,6 @@ export default function ChatInterface() {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [useKnowledgeBase, setUseKnowledgeBase] = useState(true);
   const [activeKnowledge, setActiveKnowledge] = useState<Array<{id: string, name: string}>>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Check Ollama status and load models on mount
   useEffect(() => {
@@ -70,11 +69,6 @@ export default function ChatInterface() {
 
     init();
   }, []);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
   const handleSendMessage = async (content: string, images?: string[]) => {
     if (!content.trim() || !selectedModel) return;
@@ -276,10 +270,7 @@ export default function ChatInterface() {
               {messages.length === 0 ? (
                 <WelcomeScreen onSelectAction={handleQuickAction} />
               ) : (
-                <>
-                  <MessageList messages={messages} isLoading={isLoading} />
-                  <div ref={messagesEndRef} />
-                </>
+                <MessageList messages={messages} isLoading={isLoading} />
               )}
             </div>
 

@@ -200,6 +200,9 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
             </div>
           </div>
         )}
+
+        {/* Invisible element for auto-scroll */}
+        <div ref={messagesEndRef} />
       </div>
     </div>
   );
