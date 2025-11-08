@@ -67,18 +67,27 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
         lastMessage.content &&
         lastAssistantMessageIndex !== lastPlayedIndexRef.current
       ) {
-        // Auto-play the latest assistant message
-        lastPlayedIndexRef.current = lastAssistantMessageIndex;
-        setPlayingIndex(lastAssistantMessageIndex);
+        // Only auto-play if the message is short enough (under the threshold)
+        const messageLength = lastMessage.content.length;
+        const shouldAutoPlay = messageLength <= audioSettings.autoPlayMaxLength;
 
-        synthesizeAndPlay(lastMessage.content, audioSettings)
-          .then(() => {
-            setPlayingIndex(null);
-          })
-          .catch((error) => {
-            console.error('Auto-play failed:', error);
-            setPlayingIndex(null);
-          });
+        if (shouldAutoPlay) {
+          // Auto-play the latest assistant message
+          lastPlayedIndexRef.current = lastAssistantMessageIndex;
+          setPlayingIndex(lastAssistantMessageIndex);
+
+          synthesizeAndPlay(lastMessage.content, audioSettings)
+            .then(() => {
+              setPlayingIndex(null);
+            })
+            .catch((error) => {
+              console.error('Auto-play failed:', error);
+              setPlayingIndex(null);
+            });
+        } else {
+          // Message too long, skip auto-play but mark as processed
+          lastPlayedIndexRef.current = lastAssistantMessageIndex;
+        }
       }
     }
 

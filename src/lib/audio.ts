@@ -145,6 +145,7 @@ export function getDefaultAudioSettings(): AudioSettings {
     voice: 'en_US-ryan-medium',
     speed: 1.0,
     autoPlay: false,
+    autoPlayMaxLength: 300,
     piperPath: 'piper',
   };
 }

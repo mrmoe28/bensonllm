@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import type { AudioSettings } from '../types/app';
+import type { AudioSettings, IntegrationSettings } from '../types/app';
 import { loadAudioSettings, saveAudioSettings as saveAudioSettingsToStorage } from '../lib/audio';
+import { loadIntegrationSettings, saveIntegrationSettings } from '../lib/integrations';
 import { getAvailableVoices } from '../utils/piper-helper';
 import KnowledgeBaseManager from './KnowledgeBaseManager';
 
@@ -26,7 +27,11 @@ export default function SettingsView() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('settings');
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [audioSettings, setAudioSettings] = useState<AudioSettings>(loadAudioSettings());
+  const [integrations, setIntegrations] = useState<IntegrationSettings>(loadIntegrationSettings());
   const [saved, setSaved] = useState(false);
+  const [showGithubModal, setShowGithubModal] = useState(false);
+  const [githubToken, setGithubToken] = useState('');
+  const [githubUsername, setGithubUsername] = useState('');
 
   useEffect(() => {
     loadSettings();
@@ -42,6 +47,7 @@ export default function SettingsView() {
   const saveSettings = () => {
     localStorage.setItem('ollama-settings', JSON.stringify(settings));
     saveAudioSettingsToStorage(audioSettings);
+    saveIntegrationSettings(integrations);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -60,6 +66,33 @@ export default function SettingsView() {
       setSaved(false);
       window.location.reload();
     }, 1000);
+  };
+
+  const handleGithubConnect = () => {
+    if (githubToken && githubUsername) {
+      setIntegrations({
+        ...integrations,
+        github: {
+          connected: true,
+          token: githubToken,
+          username: githubUsername,
+        }
+      });
+      setShowGithubModal(false);
+      setGithubToken('');
+      setGithubUsername('');
+      saveSettings();
+    }
+  };
+
+  const handleGithubDisconnect = () => {
+    setIntegrations({
+      ...integrations,
+      github: {
+        connected: false,
+      }
+    });
+    saveSettings();
   };
 
   return (
@@ -221,6 +254,25 @@ export default function SettingsView() {
                     </button>
                   </div>
 
+                  {audioSettings.autoPlay && (
+                    <div>
+                      <label className="block text-sm text-[#8a8a8a] mb-2">Auto-play Max Length (characters)</label>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="range"
+                          min="100"
+                          max="1000"
+                          step="50"
+                          value={audioSettings.autoPlayMaxLength}
+                          onChange={(e) => setAudioSettings({ ...audioSettings, autoPlayMaxLength: parseInt(e.target.value) })}
+                          className="flex-1"
+                        />
+                        <span className="text-[#e8e8e8] min-w-[4rem] text-right">{audioSettings.autoPlayMaxLength}</span>
+                      </div>
+                      <p className="text-xs text-[#6a6a6a] mt-1">Only auto-play responses shorter than this (300 ≈ 2-3 sentences)</p>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm text-[#8a8a8a] mb-2">Piper Path (Optional)</label>
                     <input
@@ -340,17 +392,36 @@ export default function SettingsView() {
                       <label className="block text-sm text-[#e8e8e8] mb-1">Enable Web Search</label>
                       <p className="text-xs text-[#6a6a6a]">Allow AI to search the web for information</p>
                     </div>
-                    <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-accent-orange">
-                      <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-6 transition-transform" />
+                    <button
+                      onClick={() => setIntegrations({
+                        ...integrations,
+                        webSearch: { ...integrations.webSearch, enabled: !integrations.webSearch.enabled }
+                      })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        integrations.webSearch.enabled ? 'bg-accent-orange' : 'bg-[#3a3a3a]'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          integrations.webSearch.enabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
                     </button>
                   </div>
                   <div>
                     <label className="block text-sm text-[#8a8a8a] mb-2">Search Provider</label>
-                    <select className="w-full bg-[#1a1a1a] text-[#e8e8e8] rounded-lg px-4 py-2.5 border border-[#3a3a3a] focus:outline-none focus:border-accent-orange transition-colors">
-                      <option>Google</option>
-                      <option>DuckDuckGo</option>
-                      <option>Bing</option>
-                      <option>Brave Search</option>
+                    <select
+                      value={integrations.webSearch.provider}
+                      onChange={(e) => setIntegrations({
+                        ...integrations,
+                        webSearch: { ...integrations.webSearch, provider: e.target.value as any }
+                      })}
+                      className="w-full bg-[#1a1a1a] text-[#e8e8e8] rounded-lg px-4 py-2.5 border border-[#3a3a3a] focus:outline-none focus:border-accent-orange transition-colors"
+                    >
+                      <option value="google">Google</option>
+                      <option value="duckduckgo">DuckDuckGo</option>
+                      <option value="bing">Bing</option>
+                      <option value="brave">Brave Search</option>
                     </select>
                   </div>
                 </div>
@@ -370,9 +441,38 @@ export default function SettingsView() {
                       <label className="block text-sm text-[#e8e8e8] mb-1">Allow Code Execution</label>
                       <p className="text-xs text-[#6a6a6a]">Enable AI to run code snippets in a sandbox</p>
                     </div>
-                    <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-[#3a3a3a]">
-                      <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-1 transition-transform" />
+                    <button
+                      onClick={() => setIntegrations({
+                        ...integrations,
+                        codeExecution: { ...integrations.codeExecution, enabled: !integrations.codeExecution.enabled }
+                      })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        integrations.codeExecution.enabled ? 'bg-accent-orange' : 'bg-[#3a3a3a]'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          integrations.codeExecution.enabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
                     </button>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-[#8a8a8a] mb-2">Allowed Languages</label>
+                    <input
+                      type="text"
+                      value={integrations.codeExecution.allowedLanguages.join(', ')}
+                      onChange={(e) => setIntegrations({
+                        ...integrations,
+                        codeExecution: {
+                          ...integrations.codeExecution,
+                          allowedLanguages: e.target.value.split(',').map(lang => lang.trim())
+                        }
+                      })}
+                      className="w-full bg-[#1a1a1a] text-[#e8e8e8] rounded-lg px-4 py-2.5 border border-[#3a3a3a] focus:outline-none focus:border-accent-orange transition-colors"
+                      placeholder="python, javascript, typescript, bash"
+                    />
+                    <p className="text-xs text-[#6a6a6a] mt-1">Comma-separated list of programming languages</p>
                   </div>
                 </div>
               </div>
@@ -391,17 +491,38 @@ export default function SettingsView() {
                       <label className="block text-sm text-[#e8e8e8] mb-1">File Upload</label>
                       <p className="text-xs text-[#6a6a6a]">Allow uploading files to chat</p>
                     </div>
-                    <button className="relative inline-flex h-6 w-11 items-center rounded-full bg-accent-orange">
-                      <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-6 transition-transform" />
+                    <button
+                      onClick={() => setIntegrations({
+                        ...integrations,
+                        fileUpload: { ...integrations.fileUpload, enabled: !integrations.fileUpload.enabled }
+                      })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        integrations.fileUpload.enabled ? 'bg-accent-orange' : 'bg-[#3a3a3a]'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          integrations.fileUpload.enabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
                     </button>
                   </div>
                   <div>
                     <label className="block text-sm text-[#8a8a8a] mb-2">Allowed File Types</label>
                     <input
                       type="text"
-                      defaultValue=".txt, .md, .pdf, .jpg, .png"
+                      value={integrations.fileUpload.allowedTypes.join(', ')}
+                      onChange={(e) => setIntegrations({
+                        ...integrations,
+                        fileUpload: {
+                          ...integrations.fileUpload,
+                          allowedTypes: e.target.value.split(',').map(type => type.trim())
+                        }
+                      })}
                       className="w-full bg-[#1a1a1a] text-[#e8e8e8] rounded-lg px-4 py-2.5 border border-[#3a3a3a] focus:outline-none focus:border-accent-orange transition-colors"
+                      placeholder=".txt, .md, .pdf, .jpg, .png"
                     />
+                    <p className="text-xs text-[#6a6a6a] mt-1">Comma-separated list of file extensions</p>
                   </div>
                 </div>
               </div>
@@ -416,7 +537,7 @@ export default function SettingsView() {
                 </h2>
                 <p className="text-sm text-[#8a8a8a] mb-4">Connect with external services</p>
                 <div className="space-y-2">
-                  <button className="w-full flex items-center justify-between p-4 bg-[#1a1a1a] hover:bg-[#252525] rounded-lg border border-[#3a3a3a] transition-all">
+                  <div className="w-full flex items-center justify-between p-4 bg-[#1a1a1a] rounded-lg border border-[#3a3a3a]">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded bg-[#2a2a2a] flex items-center justify-center">
                         <svg className="w-4 h-4 text-[#8a8a8a]" fill="currentColor" viewBox="0 0 24 24">
@@ -425,13 +546,29 @@ export default function SettingsView() {
                       </div>
                       <div className="text-left">
                         <div className="text-sm font-medium text-[#e8e8e8]">GitHub</div>
-                        <div className="text-xs text-[#6a6a6a]">Not connected</div>
+                        <div className="text-xs text-[#6a6a6a]">
+                          {integrations.github.connected
+                            ? `Connected as ${integrations.github.username}`
+                            : 'Not connected'}
+                        </div>
                       </div>
                     </div>
-                    <svg className="w-4 h-4 text-[#6a6a6a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </button>
+                    {integrations.github.connected ? (
+                      <button
+                        onClick={handleGithubDisconnect}
+                        className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 rounded text-sm transition-all"
+                      >
+                        Disconnect
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setShowGithubModal(true)}
+                        className="px-3 py-1.5 bg-accent-orange/10 hover:bg-accent-orange/20 border border-accent-orange/30 text-accent-orange rounded text-sm transition-all"
+                      >
+                        Connect
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </>
@@ -578,6 +715,58 @@ export default function SettingsView() {
           </button>
         </div>
       </div>
+
+      {/* GitHub Connection Modal */}
+      {showGithubModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowGithubModal(false)}>
+          <div className="bg-[#2a2a2a] rounded-xl border border-[#3a3a3a] p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-xl font-semibold text-[#e8e8e8] mb-4">Connect GitHub</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-[#8a8a8a] mb-2">GitHub Username</label>
+                <input
+                  type="text"
+                  value={githubUsername}
+                  onChange={(e) => setGithubUsername(e.target.value)}
+                  placeholder="your-username"
+                  className="w-full bg-[#1a1a1a] text-[#e8e8e8] rounded-lg px-4 py-2.5 border border-[#3a3a3a] focus:outline-none focus:border-accent-orange transition-colors"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-[#8a8a8a] mb-2">Personal Access Token</label>
+                <input
+                  type="password"
+                  value={githubToken}
+                  onChange={(e) => setGithubToken(e.target.value)}
+                  placeholder="ghp_..."
+                  className="w-full bg-[#1a1a1a] text-[#e8e8e8] rounded-lg px-4 py-2.5 border border-[#3a3a3a] focus:outline-none focus:border-accent-orange transition-colors"
+                />
+                <p className="text-xs text-[#6a6a6a] mt-1">
+                  Create a token at{' '}
+                  <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="text-accent-orange hover:underline">
+                    github.com/settings/tokens
+                  </a>
+                </p>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleGithubConnect}
+                  disabled={!githubToken || !githubUsername}
+                  className="flex-1 px-4 py-2.5 bg-accent-orange hover-accent-orange disabled:bg-[#3a3a3a] disabled:text-[#6a6a6a] disabled:cursor-not-allowed text-white rounded-lg transition-all font-medium"
+                >
+                  Connect
+                </button>
+                <button
+                  onClick={() => setShowGithubModal(false)}
+                  className="flex-1 px-4 py-2.5 bg-[#3a3a3a] hover:bg-[#4a4a4a] text-[#e8e8e8] rounded-lg transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

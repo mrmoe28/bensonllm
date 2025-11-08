@@ -13,6 +13,10 @@ import SettingsView from './SettingsView';
 import ProfileView from './ProfileView';
 import { createSystemPromptWithContext, getActiveKnowledgeSummary } from '../lib/context-builder';
 import { createMemoryFromChat } from '../lib/memory';
+import { loadIntegrationSettings, buildCapabilitiesPrompt } from '../lib/integrations';
+import { buildConversationState, buildConversationalPrompt, DEFAULT_PERSONA } from '../lib/persona';
+import { getRelevantSkills } from '../lib/storage';
+import { parseToolCalls, executeToolCalls, hasToolCalls } from '../lib/tool-calling';
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -98,8 +102,31 @@ export default function ChatInterface() {
       const assistantMessage: Message = { role: 'assistant', content: '' };
       setMessages(prev => [...prev, assistantMessage]);
 
-      // Build system prompt with context
-      const basePrompt = 'You are an expert full-stack developer and coding assistant. You excel at:\n- Writing clean, production-ready code (React, Node.js, TypeScript, Python, etc.)\n- Building full-stack applications from scratch\n- Debugging and fixing code issues\n- Explaining complex technical concepts simply\n- Following best practices and modern patterns\n\nWhen writing code:\n- Provide complete, working examples\n- Include comments for complex logic\n- Use modern syntax and best practices\n- Explain your approach briefly\n\nBe direct, practical, and focus on solutions that work.';
+      // Build conversational state and intelligent prompt
+      const integrationSettings = loadIntegrationSettings();
+      const capabilitiesInfo = buildCapabilitiesPrompt(integrationSettings);
+
+      // Analyze conversation for intelligence
+      const conversationState = buildConversationState([...messages, userMessage]);
+      const conversationalPrompt = buildConversationalPrompt(conversationState, DEFAULT_PERSONA);
+
+      // Get relevant skills knowledge
+      const relevantSkills = getRelevantSkills(content, 2);
+      const skillsContext = relevantSkills.length > 0
+        ? `\n\n### Skills Knowledge\n${relevantSkills.map(s => `**${s.name}**: ${s.content.substring(0, 300)}`).join('\n\n')}`
+        : '';
+
+      const basePrompt = `${conversationalPrompt}
+
+## Core Expertise
+You excel at:
+- Writing clean, production-ready code (React, Node.js, TypeScript, Python, etc.)
+- Building full-stack applications from scratch
+- Debugging and fixing code issues
+- Explaining complex technical concepts clearly
+- Following best practices and modern patterns
+
+${capabilitiesInfo}${skillsContext}`;
 
       const systemPrompt = useKnowledgeBase
         ? createSystemPromptWithContext(basePrompt, content, {
@@ -116,7 +143,9 @@ export default function ChatInterface() {
         : [...messages, userMessage];
 
       // Stream the response from Ollama
+      let fullResponse = '';
       for await (const chunk of streamChat(selectedModel, messagesWithSystem)) {
+        fullResponse += chunk;
         setMessages(prev => {
           const newMessages = [...prev];
           const lastMessage = newMessages[newMessages.length - 1];
@@ -128,6 +157,60 @@ export default function ChatInterface() {
           }
           return newMessages;
         });
+      }
+
+      // Check for tool calls in the response
+      if (hasToolCalls(fullResponse)) {
+        const toolCalls = parseToolCalls(fullResponse);
+
+        // Show that we're executing tools
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const lastMessage = newMessages[newMessages.length - 1];
+          if (lastMessage && lastMessage.role === 'assistant') {
+            newMessages[newMessages.length - 1] = {
+              ...lastMessage,
+              content: lastMessage.content + '\n\n_Executing tools..._'
+            };
+          }
+          return newMessages;
+        });
+
+        // Execute tool calls
+        const toolResults = await executeToolCalls(toolCalls);
+
+        // Build follow-up prompt with tool results
+        const toolResultsText = toolResults.map(result =>
+          `\n\n**Tool Result for "${result.toolCall.query}":**\n${result.result}`
+        ).join('\n');
+
+        const followUpMessage: Message = {
+          role: 'user',
+          content: `Here are the results from the tools you requested:${toolResultsText}\n\nPlease use these results to answer my original question.`
+        };
+
+        // Add tool results as a system message
+        setMessages(prev => [...prev, followUpMessage]);
+
+        // Get follow-up response from LLM
+        const followUpAssistant: Message = { role: 'assistant', content: '' };
+        setMessages(prev => [...prev, followUpAssistant]);
+
+        const followUpMessages = [...messages, userMessage, { role: 'assistant', content: fullResponse }, followUpMessage];
+
+        for await (const chunk of streamChat(selectedModel, [...messagesWithSystem.slice(0, -1), ...followUpMessages])) {
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastMessage = newMessages[newMessages.length - 1];
+            if (lastMessage && lastMessage.role === 'assistant') {
+              newMessages[newMessages.length - 1] = {
+                ...lastMessage,
+                content: lastMessage.content + chunk
+              };
+            }
+            return newMessages;
+          });
+        }
       }
     } catch (err) {
       setError('Failed to get response from Ollama. Check console for details.');

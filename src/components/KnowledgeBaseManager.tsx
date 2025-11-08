@@ -5,8 +5,12 @@ import {
   deleteKnowledgeDocument,
   updateKnowledgeDocument,
   getTotalKnowledgeSize,
+  getKnowledgeByCategory,
+  getSkillsKnowledge,
 } from '../lib/storage';
 import { processFile, processURL, validateFileType, getFileTypeIcon } from '../lib/document-processor';
+
+type KnowledgeFilter = 'all' | 'skills' | 'reference' | 'examples' | 'general';
 
 export default function KnowledgeBaseManager() {
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
@@ -15,6 +19,7 @@ export default function KnowledgeBaseManager() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
   const [selectedDoc, setSelectedDoc] = useState<KnowledgeDocument | null>(null);
+  const [activeFilter, setActiveFilter] = useState<KnowledgeFilter>('all');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -99,11 +104,58 @@ export default function KnowledgeBaseManager() {
     }
   };
 
-  const filteredDocuments = documents.filter(doc =>
+  // Apply category filter first
+  let filteredByCategory = documents;
+  if (activeFilter !== 'all') {
+    filteredByCategory = documents.filter(doc => doc.category === activeFilter);
+  }
+
+  // Then apply search query
+  const filteredDocuments = filteredByCategory.filter(doc =>
     doc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     doc.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
     doc.metadata.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const handleCategoryChange = (id: string, category: KnowledgeDocument['category']) => {
+    updateKnowledgeDocument(id, { category });
+    loadDocuments();
+  };
+
+  const handlePriorityChange = (id: string, priority: KnowledgeDocument['priority']) => {
+    updateKnowledgeDocument(id, { priority });
+    loadDocuments();
+  };
+
+  const getCategoryIcon = (category?: KnowledgeDocument['category']) => {
+    switch (category) {
+      case 'skills':
+        return '🎯';
+      case 'reference':
+        return '📚';
+      case 'examples':
+        return '💡';
+      default:
+        return '📄';
+    }
+  };
+
+  const getCategoryColor = (category?: KnowledgeDocument['category']) => {
+    switch (category) {
+      case 'skills':
+        return 'bg-accent-orange/20 text-accent-orange border-accent-orange/30';
+      case 'reference':
+        return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+      case 'examples':
+        return 'bg-green-500/20 text-green-400 border-green-500/30';
+      default:
+        return 'bg-[#3a3a3a] text-[#8a8a8a] border-[#3a3a3a]';
+    }
+  };
+
+  const skillsCount = documents.filter(d => d.category === 'skills').length;
+  const referenceCount = documents.filter(d => d.category === 'reference').length;
+  const examplesCount = documents.filter(d => d.category === 'examples').length;
 
   const totalSize = getTotalKnowledgeSize();
   const formatBytes = (bytes: number) => {
@@ -184,6 +236,50 @@ export default function KnowledgeBaseManager() {
         </div>
       )}
 
+      {/* Category Filters */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setActiveFilter('all')}
+          className={`px-4 py-2 rounded-lg transition-all text-sm font-medium border ${
+            activeFilter === 'all'
+              ? 'bg-accent-orange text-white border-accent-orange'
+              : 'bg-[#2a2a2a] text-[#8a8a8a] border-[#3a3a3a] hover:border-[#4a4a4a]'
+          }`}
+        >
+          All ({documents.length})
+        </button>
+        <button
+          onClick={() => setActiveFilter('skills')}
+          className={`px-4 py-2 rounded-lg transition-all text-sm font-medium border flex items-center gap-2 ${
+            activeFilter === 'skills'
+              ? 'bg-accent-orange text-white border-accent-orange'
+              : 'bg-[#2a2a2a] text-[#8a8a8a] border-[#3a3a3a] hover:border-accent-orange/50'
+          }`}
+        >
+          <span>🎯</span> Skills ({skillsCount})
+        </button>
+        <button
+          onClick={() => setActiveFilter('reference')}
+          className={`px-4 py-2 rounded-lg transition-all text-sm font-medium border flex items-center gap-2 ${
+            activeFilter === 'reference'
+              ? 'bg-accent-orange text-white border-accent-orange'
+              : 'bg-[#2a2a2a] text-[#8a8a8a] border-[#3a3a3a] hover:border-blue-500/50'
+          }`}
+        >
+          <span>📚</span> Reference ({referenceCount})
+        </button>
+        <button
+          onClick={() => setActiveFilter('examples')}
+          className={`px-4 py-2 rounded-lg transition-all text-sm font-medium border flex items-center gap-2 ${
+            activeFilter === 'examples'
+              ? 'bg-accent-orange text-white border-accent-orange'
+              : 'bg-[#2a2a2a] text-[#8a8a8a] border-[#3a3a3a] hover:border-green-500/50'
+          }`}
+        >
+          <span>💡</span> Examples ({examplesCount})
+        </button>
+      </div>
+
       {/* Search */}
       <div>
         <input
@@ -212,8 +308,11 @@ export default function KnowledgeBaseManager() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-2xl">{getFileTypeIcon(doc.type)}</span>
-                    <div>
-                      <h4 className="text-[#e8e8e8] font-medium">{doc.name}</h4>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-[#e8e8e8] font-medium">{doc.name}</h4>
+                        <span className="text-lg">{getCategoryIcon(doc.category)}</span>
+                      </div>
                       <p className="text-xs text-[#6a6a6a]">
                         {doc.type.toUpperCase()} • {formatBytes(doc.metadata.size)}
                         {doc.metadata.pageCount && ` • ${doc.metadata.pageCount} pages`}
@@ -221,6 +320,38 @@ export default function KnowledgeBaseManager() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Category and Priority Controls */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <select
+                      value={doc.category || 'general'}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleCategoryChange(doc.id, e.target.value as KnowledgeDocument['category']);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`text-xs px-2 py-1 rounded border ${getCategoryColor(doc.category)}`}
+                    >
+                      <option value="general">General</option>
+                      <option value="skills">Skills</option>
+                      <option value="reference">Reference</option>
+                      <option value="examples">Examples</option>
+                    </select>
+                    <select
+                      value={doc.priority || 'medium'}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handlePriorityChange(doc.id, e.target.value as KnowledgeDocument['priority']);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xs px-2 py-1 rounded bg-[#3a3a3a] text-[#e8e8e8] border border-[#4a4a4a]"
+                    >
+                      <option value="low">Low Priority</option>
+                      <option value="medium">Medium Priority</option>
+                      <option value="high">High Priority</option>
+                    </select>
+                  </div>
+
                   <p className="text-sm text-[#8a8a8a] line-clamp-2">
                     {doc.content.substring(0, 150)}...
                   </p>

@@ -167,6 +167,53 @@ export const getTotalKnowledgeSize = (): number => {
   return documents.reduce((total, doc) => total + doc.metadata.size, 0);
 };
 
+// Skills Knowledge Functions - Fast retrieval for AI capabilities
+export const getSkillsKnowledge = (): KnowledgeDocument[] => {
+  return getKnowledgeDocuments().filter(doc => doc.category === 'skills');
+};
+
+export const getKnowledgeByCategory = (category: KnowledgeDocument['category']): KnowledgeDocument[] => {
+  return getKnowledgeDocuments().filter(doc => doc.category === category);
+};
+
+export const getHighPriorityKnowledge = (): KnowledgeDocument[] => {
+  return getKnowledgeDocuments()
+    .filter(doc => doc.priority === 'high')
+    .sort((a, b) => b.metadata.createdAt - a.metadata.createdAt);
+};
+
+export const getRelevantSkills = (query: string, limit: number = 3): KnowledgeDocument[] => {
+  const skills = getSkillsKnowledge();
+  const lowerQuery = query.toLowerCase();
+
+  // Score each skill by relevance
+  const scored = skills.map(skill => {
+    let score = 0;
+
+    // Match in name (highest priority)
+    if (skill.name.toLowerCase().includes(lowerQuery)) score += 10;
+
+    // Match in tags
+    skill.metadata.tags.forEach(tag => {
+      if (lowerQuery.includes(tag.toLowerCase())) score += 5;
+    });
+
+    // Match in content
+    if (skill.content.toLowerCase().includes(lowerQuery)) score += 2;
+
+    // Boost for high priority
+    if (skill.priority === 'high') score += 3;
+
+    return { skill, score };
+  });
+
+  return scored
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(item => item.skill);
+};
+
 // Conversation Memory Functions
 export const getConversationMemories = (): ConversationMemory[] => {
   const data = localStorage.getItem(STORAGE_KEYS.MEMORY);

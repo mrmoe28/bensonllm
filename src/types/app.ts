@@ -46,6 +46,8 @@ export interface KnowledgeDocument {
   content: string;
   rawContent?: string;
   url?: string;
+  category?: 'general' | 'skills' | 'reference' | 'examples';
+  priority?: 'high' | 'medium' | 'low';
   metadata: {
     size: number;
     pageCount?: number;
@@ -72,7 +74,28 @@ export interface AudioSettings {
   voice: string;
   speed: number;
   autoPlay: boolean;
+  autoPlayMaxLength: number;
   piperPath: string;
+}
+
+export interface IntegrationSettings {
+  webSearch: {
+    enabled: boolean;
+    provider: 'google' | 'duckduckgo' | 'bing' | 'brave';
+  };
+  codeExecution: {
+    enabled: boolean;
+    allowedLanguages: string[];
+  };
+  fileUpload: {
+    enabled: boolean;
+    allowedTypes: string[];
+  };
+  github: {
+    connected: boolean;
+    token?: string;
+    username?: string;
+  };
 }
 
 export type ViewType = 'chats' | 'projects' | 'artifacts' | 'code' | 'settings' | 'profile' | 'knowledge';
