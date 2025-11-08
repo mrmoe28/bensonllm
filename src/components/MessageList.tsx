@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { type Message } from '../lib/ollama-client';
 import { synthesizeAndPlay, stopCurrentAudio, loadAudioSettings } from '../lib/audio';
 import ReactMarkdown from 'react-markdown';
@@ -11,6 +11,9 @@ interface MessageListProps {
 
 export default function MessageList({ messages, isLoading }: MessageListProps) {
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
+  const previousLoadingRef = useRef(isLoading);
+  const lastPlayedIndexRef = useRef<number>(-1);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handlePlayAudio = async (content: string, index: number) => {
     try {
@@ -33,6 +36,55 @@ export default function MessageList({ messages, isLoading }: MessageListProps) {
       setPlayingIndex(null);
     }
   };
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
+
+  // Auto-play when new assistant messages arrive
+  useEffect(() => {
+    const audioSettings = loadAudioSettings();
+
+    // Check if auto-play is enabled and TTS is enabled
+    if (!audioSettings.enabled || !audioSettings.autoPlay) {
+      previousLoadingRef.current = isLoading;
+      return;
+    }
+
+    // Detect when loading has just finished (true -> false)
+    const wasLoading = previousLoadingRef.current;
+    const justFinishedLoading = wasLoading && !isLoading;
+
+    if (justFinishedLoading && messages.length > 0) {
+      // Find the last assistant message
+      const lastAssistantMessageIndex = messages.length - 1;
+      const lastMessage = messages[lastAssistantMessageIndex];
+
+      if (
+        lastMessage &&
+        lastMessage.role === 'assistant' &&
+        lastMessage.content &&
+        lastAssistantMessageIndex !== lastPlayedIndexRef.current
+      ) {
+        // Auto-play the latest assistant message
+        lastPlayedIndexRef.current = lastAssistantMessageIndex;
+        setPlayingIndex(lastAssistantMessageIndex);
+
+        synthesizeAndPlay(lastMessage.content, audioSettings)
+          .then(() => {
+            setPlayingIndex(null);
+          })
+          .catch((error) => {
+            console.error('Auto-play failed:', error);
+            setPlayingIndex(null);
+          });
+      }
+    }
+
+    previousLoadingRef.current = isLoading;
+  }, [isLoading, messages]);
+
   return (
     <div className="h-full overflow-y-auto custom-scrollbar">
       <div className="max-w-[800px] mx-auto px-6 py-6 space-y-8">
