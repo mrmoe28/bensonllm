@@ -4,6 +4,7 @@ const OLLAMA_BASE_URL = import.meta.env.VITE_OLLAMA_URL || 'http://localhost:114
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  images?: string[]; // Base64-encoded images for vision models
 }
 
 export interface ChatRequest {

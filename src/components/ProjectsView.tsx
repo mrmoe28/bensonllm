@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { getProjects, addProject, deleteProject, updateProject } from '../lib/storage';
 import type { Project, Folder } from '../types/app';
 
-export default function ProjectsView() {
+interface ProjectsViewProps {
+  onProjectCreated?: (projectId: string) => void;
+}
+
+export default function ProjectsView({ onProjectCreated }: ProjectsViewProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [showNewFolderForm, setShowNewFolderForm] = useState<string | null>(null);
@@ -32,6 +36,11 @@ export default function ProjectsView() {
     setNewProject({ name: '', description: '' });
     setShowNewProjectForm(false);
     loadProjects();
+
+    // Notify parent that project was created and start a new chat for it
+    if (onProjectCreated) {
+      onProjectCreated(project.id);
+    }
   };
 
   const handleCreateFolder = (projectId: string) => {
@@ -55,21 +64,17 @@ export default function ProjectsView() {
   };
 
   const handleDeleteProject = (id: string) => {
-    if (confirm('Delete this project and all its folders?')) {
-      deleteProject(id);
-      loadProjects();
-    }
+    deleteProject(id);
+    loadProjects();
   };
 
   const handleDeleteFolder = (projectId: string, folderId: string) => {
-    if (confirm('Delete this folder?')) {
-      const project = projects.find(p => p.id === projectId);
-      if (!project) return;
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
 
-      const updatedFolders = project.folders.filter(f => f.id !== folderId);
-      updateProject(projectId, { folders: updatedFolders });
-      loadProjects();
-    }
+    const updatedFolders = project.folders.filter(f => f.id !== folderId);
+    updateProject(projectId, { folders: updatedFolders });
+    loadProjects();
   };
 
   return (

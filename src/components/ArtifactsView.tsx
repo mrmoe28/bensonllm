@@ -37,11 +37,9 @@ export default function ArtifactsView() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Delete this artifact?')) {
-      const updated = artifacts.filter(a => a.id !== id);
-      saveArtifacts(updated);
-      loadArtifacts();
-    }
+    const updated = artifacts.filter(a => a.id !== id);
+    saveArtifacts(updated);
+    loadArtifacts();
   };
 
   const getTypeIcon = (type: Artifact['type']) => {

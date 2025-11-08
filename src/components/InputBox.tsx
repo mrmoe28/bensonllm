@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
-import { type Model } from '../lib/ollama-client';
+import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import type { Model } from '../lib/ollama-client';
 
 interface InputBoxProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, images?: string[]) => void;
   disabled?: boolean;
   models: Model[];
   selectedModel: string;
@@ -11,8 +11,9 @@ interface InputBoxProps {
 
 export default function InputBox({ onSend, disabled = false, models, selectedModel, onSelectModel }: InputBoxProps) {
   const [input, setInput] = useState('');
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -25,8 +26,9 @@ export default function InputBox({ onSend, disabled = false, models, selectedMod
 
   const handleSend = () => {
     if (input.trim() && !disabled) {
-      onSend(input);
+      onSend(input, uploadedImages.length > 0 ? uploadedImages : undefined);
       setInput('');
+      setUploadedImages([]);
     }
   };
 
@@ -37,10 +39,81 @@ export default function InputBox({ onSend, disabled = false, models, selectedMod
     }
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64 = event.target?.result as string;
+          setUploadedImages(prev => [...prev, base64]);
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   return (
     <div className="border-t border-[#2a2a2a] bg-[#1a1a1a]">
       <div className="max-w-[800px] mx-auto px-6 py-4">
+        {/* Image previews */}
+        {uploadedImages.length > 0 && (
+          <div className="mb-3 flex gap-2 flex-wrap">
+            {uploadedImages.map((img, index) => (
+              <div key={index} className="relative group">
+                <img
+                  src={img}
+                  alt={`Upload ${index + 1}`}
+                  className="w-20 h-20 object-cover rounded-lg border border-[#3a3a3a]"
+                />
+                <button
+                  onClick={() => removeImage(index)}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Remove image"
+                >
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="relative flex items-end gap-2 bg-[#2a2a2a] rounded-2xl px-3 py-2.5 border border-[#3a3a3a] focus-within:border-[#4a4a4a] transition-colors">
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImageUpload}
+            className="hidden"
+          />
+
+          {/* Image upload button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-shrink-0 p-1.5 rounded-md hover:bg-[#3a3a3a] transition-colors self-end mb-0.5"
+            title="Upload images"
+            disabled={disabled}
+          >
+            <svg
+              className="w-4 h-4 text-[#6a6a6a] hover:text-accent-orange transition-colors"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+
           {/* Textarea */}
           <textarea
             ref={textareaRef}
@@ -53,22 +126,6 @@ export default function InputBox({ onSend, disabled = false, models, selectedMod
             rows={1}
             style={{ minHeight: '24px', maxHeight: '200px' }}
           />
-
-          {/* Web Search Toggle */}
-          <button
-            onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-            className="flex-shrink-0 p-1.5 rounded-md hover:bg-[#3a3a3a] transition-colors self-end mb-0.5"
-            title={webSearchEnabled ? 'Web search enabled' : 'Web search disabled'}
-          >
-            <svg
-              className={`w-4 h-4 ${webSearchEnabled ? 'text-accent-orange' : 'text-[#6a6a6a]'}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-            </svg>
-          </button>
 
           {/* Send Button */}
           <button
@@ -110,14 +167,6 @@ export default function InputBox({ onSend, disabled = false, models, selectedMod
             </svg>
           </div>
         </div>
-        {webSearchEnabled && (
-          <div className="flex items-center gap-2 px-2 py-1">
-            <svg className="w-3 h-3 text-accent-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-            </svg>
-            <span className="text-xs text-accent-orange">Web search enabled</span>
-          </div>
-        )}
         <div className="mt-2 text-xs text-[#6a6a6a] px-2">
           Press Enter to send, Shift+Enter for new line
         </div>

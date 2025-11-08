@@ -4,6 +4,8 @@ export interface ChatHistory {
   timestamp: number;
   messages: Array<{ role: string; content: string }>;
   starred?: boolean;
+  projectId?: string;
+  folderId?: string;
 }
 
 export interface Project {
@@ -37,4 +39,40 @@ export interface CodeSnippet {
   createdAt: number;
 }
 
-export type ViewType = 'chats' | 'projects' | 'artifacts' | 'code';
+export interface KnowledgeDocument {
+  id: string;
+  name: string;
+  type: 'pdf' | 'text' | 'markdown' | 'url' | 'image' | 'docx';
+  content: string;
+  rawContent?: string;
+  url?: string;
+  metadata: {
+    size: number;
+    pageCount?: number;
+    ocrProcessed?: boolean;
+    createdAt: number;
+    updatedAt: number;
+    tags: string[];
+  };
+}
+
+export interface ConversationMemory {
+  id: string;
+  sessionId: string;
+  chatId: string;
+  summary: string;
+  keyTopics: string[];
+  entities: string[];
+  timestamp: number;
+  messageCount: number;
+}
+
+export interface AudioSettings {
+  enabled: boolean;
+  voice: string;
+  speed: number;
+  autoPlay: boolean;
+  piperPath: string;
+}
+
+export type ViewType = 'chats' | 'projects' | 'artifacts' | 'code' | 'settings' | 'profile' | 'knowledge';

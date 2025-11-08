@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { getModels, streamChat, checkOllamaStatus, type Message, type Model } from '../lib/ollama-client';
-import { addChatToHistory } from '../lib/storage';
+import { addChatToHistory, getProjects } from '../lib/storage';
 import type { ViewType, ChatHistory } from '../types/app';
 import MessageList from './MessageList';
 import InputBox from './InputBox';
@@ -9,6 +9,10 @@ import WelcomeScreen from './WelcomeScreen';
 import ProjectsView from './ProjectsView';
 import ArtifactsView from './ArtifactsView';
 import CodeView from './CodeView';
+import SettingsView from './SettingsView';
+import ProfileView from './ProfileView';
+import { createSystemPromptWithContext, getActiveKnowledgeSummary } from '../lib/context-builder';
+import { createMemoryFromChat } from '../lib/memory';
 
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -19,40 +23,48 @@ export default function ChatInterface() {
   const [error, setError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('chats');
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [useKnowledgeBase, setUseKnowledgeBase] = useState(true);
+  const [activeKnowledge, setActiveKnowledge] = useState<Array<{id: string, name: string}>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Check Ollama status and load models on mount
   useEffect(() => {
     async function init() {
+      // Load Ollama models
       const status = await checkOllamaStatus();
       setIsOllamaRunning(status);
 
       if (status) {
         try {
-          const availableModels = await getModels();
-          setModels(availableModels);
+          const ollamaModels = await getModels();
+          setModels(ollamaModels);
 
-          // Set qwen2.5:1.5b as default if available, otherwise any qwen, otherwise first model
-          const qwen1_5b = availableModels.find(m =>
-            m.name.toLowerCase() === 'qwen2.5:1.5b'
-          );
-          const anyQwen = availableModels.find(m =>
-            m.name.toLowerCase().includes('qwen') ||
-            m.name.toLowerCase().includes('quinn')
-          );
+          // Select default model - prefer qwen2.5:1.5b
+          if (ollamaModels.length > 0) {
+            const qwen1_5b = ollamaModels.find(m =>
+              m.name.toLowerCase() === 'qwen2.5:1.5b'
+            );
+            const anyQwen = ollamaModels.find(m =>
+              m.name.toLowerCase().includes('qwen') ||
+              m.name.toLowerCase().includes('quinn')
+            );
 
-          if (qwen1_5b) {
-            setSelectedModel(qwen1_5b.name);
-          } else if (anyQwen) {
-            setSelectedModel(anyQwen.name);
-          } else if (availableModels.length > 0) {
-            setSelectedModel(availableModels[0].name);
+            if (qwen1_5b) {
+              setSelectedModel(qwen1_5b.name);
+            } else if (anyQwen) {
+              setSelectedModel(anyQwen.name);
+            } else {
+              setSelectedModel(ollamaModels[0].name);
+            }
           }
         } catch (err) {
-          setError('Failed to load models. Make sure Ollama is running.');
+          console.error('Failed to load Ollama models:', err);
+          setError('Failed to load models from Ollama.');
         }
       } else {
-        setError('Ollama is not running. Please start Ollama first.');
+        setError('Ollama is not running. Please start Ollama on http://localhost:11434');
       }
     }
 
@@ -64,10 +76,14 @@ export default function ChatInterface() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = async (content: string) => {
+  const handleSendMessage = async (content: string, images?: string[]) => {
     if (!content.trim() || !selectedModel) return;
 
-    const userMessage: Message = { role: 'user', content };
+    const userMessage: Message = {
+      role: 'user',
+      content,
+      images: images
+    };
 
     // Create a new chat ID if this is the first message
     if (!currentChatId) {
@@ -78,17 +94,43 @@ export default function ChatInterface() {
     setIsLoading(true);
     setError(null);
 
+    // Get active knowledge for this query
+    if (useKnowledgeBase) {
+      const knowledge = getActiveKnowledgeSummary(content, 3);
+      setActiveKnowledge(knowledge);
+    }
+
     try {
       const assistantMessage: Message = { role: 'assistant', content: '' };
       setMessages(prev => [...prev, assistantMessage]);
 
-      // Stream the response
-      for await (const chunk of streamChat(selectedModel, [...messages, userMessage])) {
+      // Build system prompt with context
+      const basePrompt = 'You are an expert full-stack developer and coding assistant. You excel at:\n- Writing clean, production-ready code (React, Node.js, TypeScript, Python, etc.)\n- Building full-stack applications from scratch\n- Debugging and fixing code issues\n- Explaining complex technical concepts simply\n- Following best practices and modern patterns\n\nWhen writing code:\n- Provide complete, working examples\n- Include comments for complex logic\n- Use modern syntax and best practices\n- Explain your approach briefly\n\nBe direct, practical, and focus on solutions that work.';
+
+      const systemPrompt = useKnowledgeBase
+        ? createSystemPromptWithContext(basePrompt, content, {
+            includeKnowledge: true,
+            includeMemory: true,
+            maxKnowledgeDocs: 3,
+            maxMemories: 2,
+            maxContextLength: 4000,
+          })
+        : { role: 'system' as const, content: basePrompt };
+
+      const messagesWithSystem = messages.length === 0
+        ? [systemPrompt, userMessage]
+        : [...messages, userMessage];
+
+      // Stream the response from Ollama
+      for await (const chunk of streamChat(selectedModel, messagesWithSystem)) {
         setMessages(prev => {
           const newMessages = [...prev];
           const lastMessage = newMessages[newMessages.length - 1];
           if (lastMessage && lastMessage.role === 'assistant') {
-            lastMessage.content += chunk;
+            newMessages[newMessages.length - 1] = {
+              ...lastMessage,
+              content: lastMessage.content + chunk
+            };
           }
           return newMessages;
         });
@@ -111,6 +153,8 @@ export default function ChatInterface() {
     setMessages([]);
     setError(null);
     setCurrentChatId(null);
+    setCurrentProjectId(null);
+    setCurrentFolderId(null);
     setCurrentView('chats');
   };
 
@@ -118,7 +162,7 @@ export default function ChatInterface() {
     handleSendMessage(prompt);
   };
 
-  const saveCurrentChat = () => {
+  const saveCurrentChat = async () => {
     if (messages.length === 0) return;
 
     const chatTitle = messages[0]?.content.slice(0, 50) || 'New Chat';
@@ -129,9 +173,31 @@ export default function ChatInterface() {
       title: chatTitle,
       timestamp: Date.now(),
       messages: messages,
+      projectId: currentProjectId || undefined,
+      folderId: currentFolderId || undefined,
     };
 
     addChatToHistory(chat);
+
+    // Create memory from this conversation
+    if (messages.length >= 2) {
+      await createMemoryFromChat(chat);
+    }
+  };
+
+  const handleProjectCreated = (projectId: string) => {
+    // Save current chat if it exists
+    if (messages.length > 0) {
+      saveCurrentChat();
+    }
+
+    // Clear current chat and start a new one for the project
+    setMessages([]);
+    setCurrentChatId(Date.now().toString());
+    setCurrentProjectId(projectId);
+    setCurrentFolderId(null);
+    setCurrentView('chats');
+    setError(null);
   };
 
   const handleLoadChat = (chat: ChatHistory) => {
@@ -140,8 +206,10 @@ export default function ChatInterface() {
       saveCurrentChat();
     }
 
-    setMessages(chat.messages);
+    setMessages(chat.messages as Message[]);
     setCurrentChatId(chat.id);
+    setCurrentProjectId(chat.projectId || null);
+    setCurrentFolderId(chat.folderId || null);
     setCurrentView('chats');
   };
 
@@ -164,14 +232,20 @@ export default function ChatInterface() {
     }
   }, [messages, isLoading]);
 
+  // Only show error if Ollama is not running
   if (!isOllamaRunning) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#1a1a1a]">
-        <div className="text-center p-8 bg-[#2a2a2a] rounded-xl border border-[#3a3a3a]">
+        <div className="text-center p-8 bg-[#2a2a2a] rounded-xl border border-[#3a3a3a] max-w-md">
           <div className="text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold mb-2 text-[#e8e8e8]">Ollama Not Running</h2>
-          <p className="text-[#8a8a8a] mb-4">Please start Ollama to use this chat interface.</p>
-          <p className="text-sm text-[#6a6a6a]">Make sure Ollama is running on http://localhost:11434</p>
+          <p className="text-[#8a8a8a] mb-4">Please start Ollama to use local models.</p>
+          <div className="text-left space-y-3 text-sm">
+            <div className="p-3 bg-[#1a1a1a] rounded-lg">
+              <p className="text-[#e8e8e8] font-medium mb-1">Start Ollama</p>
+              <p className="text-[#6a6a6a]">Run Ollama on http://localhost:11434</p>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -197,6 +271,54 @@ export default function ChatInterface() {
         {/* Main content area */}
         {currentView === 'chats' ? (
           <>
+            {/* Knowledge Base & Project Indicators */}
+            {(currentProjectId || useKnowledgeBase) && messages.length > 0 && (
+              <div className="px-6 pt-4">
+                <div className="max-w-[800px] mx-auto flex items-center gap-2 flex-wrap">
+                  {/* Knowledge Base Toggle */}
+                  <button
+                    onClick={() => setUseKnowledgeBase(!useKnowledgeBase)}
+                    className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-all ${
+                      useKnowledgeBase
+                        ? 'bg-accent-orange/10 border-accent-orange text-accent-orange'
+                        : 'bg-[#2a2a2a] border-[#3a3a3a] text-[#8a8a8a] hover:text-[#e8e8e8]'
+                    }`}
+                    title={useKnowledgeBase ? 'Knowledge Base Active' : 'Knowledge Base Inactive'}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <span className="text-sm font-medium">
+                      {useKnowledgeBase ? `Knowledge (${activeKnowledge.length})` : 'Knowledge Off'}
+                    </span>
+                  </button>
+
+                  {/* Project Indicator */}
+                  {currentProjectId && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-[#2a2a2a] border border-[#3a3a3a] rounded-lg">
+                      <svg className="w-4 h-4 text-accent-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      <span className="text-sm text-[#e8e8e8]">
+                        {getProjects().find(p => p.id === currentProjectId)?.name || 'Unknown Project'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Active Knowledge Documents */}
+                  {useKnowledgeBase && activeKnowledge.length > 0 && (
+                    <div className="flex gap-1">
+                      {activeKnowledge.map(doc => (
+                        <span key={doc.id} className="px-2 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded text-xs">
+                          {doc.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 overflow-hidden flex flex-col">
               {messages.length === 0 ? (
                 <WelcomeScreen onSelectAction={handleQuickAction} />
@@ -218,11 +340,15 @@ export default function ChatInterface() {
             />
           </>
         ) : currentView === 'projects' ? (
-          <ProjectsView />
+          <ProjectsView onProjectCreated={handleProjectCreated} />
         ) : currentView === 'artifacts' ? (
           <ArtifactsView />
         ) : currentView === 'code' ? (
           <CodeView />
+        ) : currentView === 'settings' ? (
+          <SettingsView />
+        ) : currentView === 'profile' ? (
+          <ProfileView />
         ) : null}
       </div>
     </div>

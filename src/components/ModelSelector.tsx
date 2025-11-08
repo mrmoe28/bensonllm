@@ -15,9 +15,6 @@ export default function ModelSelector({ models, selectedModel, onSelectModel }: 
     );
   }
 
-  // Get the selected model's display name
-  const selectedModelDisplay = models.find(m => m.name === selectedModel)?.name || selectedModel;
-
   return (
     <div className="relative">
       <select

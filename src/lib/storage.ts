@@ -1,10 +1,12 @@
-import type { ChatHistory, Project, Artifact, CodeSnippet } from '../types/app';
+import type { ChatHistory, Project, Artifact, CodeSnippet, KnowledgeDocument, ConversationMemory } from '../types/app';
 
 const STORAGE_KEYS = {
   CHATS: 'ollama-chat-history',
   PROJECTS: 'ollama-projects',
   ARTIFACTS: 'ollama-artifacts',
   CODE: 'ollama-code-snippets',
+  KNOWLEDGE: 'ollama-knowledge-base',
+  MEMORY: 'ollama-conversation-memory',
 };
 
 // Chat History Functions
@@ -42,6 +44,18 @@ export const toggleChatStar = (id: string): void => {
     chat.id === id ? { ...chat, starred: !chat.starred } : chat
   );
   saveChatHistory(chats);
+};
+
+export const getChatsByProject = (projectId: string): ChatHistory[] => {
+  return getChatHistory().filter(chat => chat.projectId === projectId);
+};
+
+export const getChatsByFolder = (folderId: string): ChatHistory[] => {
+  return getChatHistory().filter(chat => chat.folderId === folderId);
+};
+
+export const getChatsWithoutProject = (): ChatHistory[] => {
+  return getChatHistory().filter(chat => !chat.projectId);
 };
 
 // Project Functions
@@ -102,4 +116,89 @@ export const addCodeSnippet = (snippet: CodeSnippet): void => {
   const snippets = getCodeSnippets();
   snippets.push(snippet);
   saveCodeSnippets(snippets);
+};
+
+// Knowledge Base Functions
+export const getKnowledgeDocuments = (): KnowledgeDocument[] => {
+  const data = localStorage.getItem(STORAGE_KEYS.KNOWLEDGE);
+  return data ? JSON.parse(data) : [];
+};
+
+export const saveKnowledgeDocuments = (documents: KnowledgeDocument[]): void => {
+  localStorage.setItem(STORAGE_KEYS.KNOWLEDGE, JSON.stringify(documents));
+};
+
+export const addKnowledgeDocument = (document: KnowledgeDocument): void => {
+  const documents = getKnowledgeDocuments();
+  documents.push(document);
+  saveKnowledgeDocuments(documents);
+};
+
+export const updateKnowledgeDocument = (id: string, updates: Partial<KnowledgeDocument>): void => {
+  const documents = getKnowledgeDocuments().map(doc =>
+    doc.id === id ? { ...doc, ...updates, metadata: { ...doc.metadata, updatedAt: Date.now() } } : doc
+  );
+  saveKnowledgeDocuments(documents);
+};
+
+export const deleteKnowledgeDocument = (id: string): void => {
+  const documents = getKnowledgeDocuments().filter(doc => doc.id !== id);
+  saveKnowledgeDocuments(documents);
+};
+
+export const searchKnowledgeBase = (query: string): KnowledgeDocument[] => {
+  const documents = getKnowledgeDocuments();
+  const lowerQuery = query.toLowerCase();
+
+  return documents.filter(doc =>
+    doc.name.toLowerCase().includes(lowerQuery) ||
+    doc.content.toLowerCase().includes(lowerQuery) ||
+    doc.metadata.tags.some(tag => tag.toLowerCase().includes(lowerQuery))
+  );
+};
+
+export const getRelevantDocuments = (query: string, limit: number = 5): KnowledgeDocument[] => {
+  const documents = searchKnowledgeBase(query);
+  return documents.slice(0, limit);
+};
+
+export const getTotalKnowledgeSize = (): number => {
+  const documents = getKnowledgeDocuments();
+  return documents.reduce((total, doc) => total + doc.metadata.size, 0);
+};
+
+// Conversation Memory Functions
+export const getConversationMemories = (): ConversationMemory[] => {
+  const data = localStorage.getItem(STORAGE_KEYS.MEMORY);
+  return data ? JSON.parse(data) : [];
+};
+
+export const saveConversationMemories = (memories: ConversationMemory[]): void => {
+  localStorage.setItem(STORAGE_KEYS.MEMORY, JSON.stringify(memories));
+};
+
+export const addConversationMemory = (memory: ConversationMemory): void => {
+  const memories = getConversationMemories();
+  memories.push(memory);
+  saveConversationMemories(memories);
+};
+
+export const getMemoriesBySession = (sessionId: string): ConversationMemory[] => {
+  return getConversationMemories().filter(m => m.sessionId === sessionId);
+};
+
+export const getMemoriesByTopic = (topic: string): ConversationMemory[] => {
+  const lowerTopic = topic.toLowerCase();
+  return getConversationMemories().filter(m =>
+    m.keyTopics.some(t => t.toLowerCase().includes(lowerTopic))
+  );
+};
+
+export const searchMemories = (query: string): ConversationMemory[] => {
+  const lowerQuery = query.toLowerCase();
+  return getConversationMemories().filter(m =>
+    m.summary.toLowerCase().includes(lowerQuery) ||
+    m.keyTopics.some(t => t.toLowerCase().includes(lowerQuery)) ||
+    m.entities.some(e => e.toLowerCase().includes(lowerQuery))
+  );
 };

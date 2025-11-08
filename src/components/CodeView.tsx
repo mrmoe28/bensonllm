@@ -42,11 +42,9 @@ export default function CodeView() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Delete this code snippet?')) {
-      const updated = snippets.filter(s => s.id !== id);
-      saveCodeSnippets(updated);
-      loadSnippets();
-    }
+    const updated = snippets.filter(s => s.id !== id);
+    saveCodeSnippets(updated);
+    loadSnippets();
   };
 
   const handleCopy = (code: string) => {
